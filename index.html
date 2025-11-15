@@ -146,7 +146,7 @@
     }
     
     async function newSession() {
-      const res = await fetch("http://localhost:8000/new_session");
+      const res = await fetch("/new_session");
       const data = await res.json();
       sessionId = data.session_id;
       document.getElementById("sessionId").innerText = sessionId;
@@ -174,7 +174,7 @@
 
       // Chama a API
       try {
-        const res = await fetch("http://localhost:8000/chat", {
+        const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: sessionId, message: msg })
