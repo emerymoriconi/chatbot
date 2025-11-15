@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Multiusuário</title>
+  
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      max-width: 650px; 
+      margin: 0 auto; 
+      padding: 0 20px; 
+      background-color: #f4f7f6;
+    }
+    #chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 90vh; 
+      padding-top: 20px;
+    }
+    #session-info {
+      padding: 10px 0;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #chat-messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 10px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    .message {
+      display: flex;
+      margin: 10px 0;
+    }
+    .user-message {
+      justify-content: flex-end;
+    }
+    .bot-message {
+      justify-content: flex-start;
+    }
+    .bubble {
+      max-width: 70%;
+      padding: 10px 15px;
+      border-radius: 20px;
+      line-height: 1.4;
+      font-size: 14px;
+      /* Define a formatação padrão da bolha */
+    }
+    .user-message .bubble {
+      background-color: #007bff;
+      color: white;
+      border-bottom-right-radius: 5px;
+    }
+    .bot-message .bubble {
+      background-color: #e9ecef;
+      color: #333;
+      border-bottom-left-radius: 5px;
+    }
+    /* NOVO: Estilos para renderização Markdown dentro da bolha do bot */
+    .bot-message .bubble p, 
+    .bot-message .bubble ul, 
+    .bot-message .bubble ol, 
+    .bot-message .bubble h1, 
+    .bot-message .bubble h2,
+    .bot-message .bubble hr {
+        margin-top: 5px;
+        margin-bottom: 5px;
+    }
+    .bot-message .bubble h2 {
+        font-size: 1.1em;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 3px;
+        margin-top: 10px;
+    }
+    /* Ajuste para listas */
+    .bot-message .bubble ul, 
+    .bot-message .bubble ol {
+        padding-left: 20px;
+    }
+    
+    #input-area {
+      display: flex;
+      padding: 15px 0 20px;
+    }
+    #message {
+      flex-grow: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      margin-right: 10px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 20px;
+      background-color: #28a745;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+  </style>
+  
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+  <div id="chat-container">
+    <div id="session-info">
+      <p><strong>ID da Sessão:</strong> <span id="sessionId">Clique em "Nova Sessão"</span></p>
+      <button onclick="newSession()">Nova Sessão</button>
+    </div>
+
+    <div id="chat-messages">
+      </div>
+
+    <div id="input-area">
+      <input type="text" id="message" placeholder="Digite sua mensagem..." onkeydown="handleKey(event)"/>
+      <button onclick="sendMessage()">Enviar</button>
+    </div>
+  </div>
+
+  <script>
+    let sessionId = null;
+    // Configura o Marked.js para não permitir HTML puro (segurança)
+    marked.setOptions({
+        gfm: true, // Github Flavored Markdown
+        breaks: true // Novas linhas simples viram <br>
+    });
+
+    function handleKey(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+    
+    async function newSession() {
+      const res = await fetch("http://localhost:8000/new_session");
+      const data = await res.json();
+      sessionId = data.session_id;
+      document.getElementById("sessionId").innerText = sessionId;
+      document.getElementById("chat-messages").innerHTML = '<p style="text-align: center; color: #6c757d;">Nova sessão iniciada.</p>';
+    }
+
+    async function sendMessage() {
+      const msgInput = document.getElementById("message");
+      const msg = msgInput.value.trim();
+
+      if (!msg || !sessionId) {
+        alert("Por favor, inicie uma nova sessão e digite uma mensagem.");
+        return;
+      }
+      
+      // Adiciona a mensagem do usuário imediatamente
+      document.getElementById("chat-messages").innerHTML +=
+        `<div class="message user-message"><div class="bubble">${msg}</div></div>`;
+
+      msgInput.value = ""; // Limpa o campo
+      
+      // Rola para o final
+      const chatMessages = document.getElementById("chat-messages");
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // Chama a API
+      try {
+        const res = await fetch("http://localhost:8000/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, message: msg })
+        });
+        
+        if (!res.ok) {
+            throw new Error(`Erro HTTP! Status: ${res.status}`);
+        }
+
+        const data = await res.json();
+        
+        // NOVO: Converte a resposta do bot de Markdown para HTML
+        const htmlResponse = marked.parse(data.response);
+
+        // Adiciona a resposta do bot (agora em HTML)
+        document.getElementById("chat-messages").innerHTML +=
+          `<div class="message bot-message"><div class="bubble">${htmlResponse}</div></div>`;
+          
+      } catch (error) {
+          console.error("Erro ao enviar mensagem:", error);
+          document.getElementById("chat-messages").innerHTML +=
+            `<div class="message bot-message"><div class="bubble" style="background-color: #dc3545; color: white;">Erro: Não foi possível obter a resposta do servidor.</div></div>`;
+      }
+      
+      // Rola novamente após a resposta do bot
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // Inicializa uma sessão ao carregar a página
+    window.onload = newSession;
+  </script>
+</body>
+</html>
