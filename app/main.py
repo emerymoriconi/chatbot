@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.session_manager import SessionManager
 from app.schemas import MessageInput
+from fastapi.responses import FileResponse
 from app.llm_service import generate_response
 
 app = FastAPI()
@@ -15,6 +16,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+@app.get("/")
+def read_root():
+    return FileResponse("index.html")
 
 @app.get("/new_session")
 def new_session():
